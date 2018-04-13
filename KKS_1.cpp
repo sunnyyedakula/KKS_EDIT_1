@@ -472,6 +472,7 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 			double divGradC = 0.0;
 			double lapPhi = 0.0;
 			double gradPsq = 0.0;
+			double Lans = 0.0;
                        // int nex = 0;
                         //int ney = 0;
 			//double L_ans = 0.0;
@@ -598,20 +599,20 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
                                        // mod = nex*nex + ney*ney;
 	                                //L_ans = (I_10*(nex*nex*nex*nex + ney*ney*ney*ney)/(mod*mod))+ 2.0*(I_11*(nex*nex*ney*ney)/(mod*mod));
 				}
-			}
-
-			/* ==================================================================== *
-			 * Solve the Equation of Motion for phi: Kim, Kim, & Suzuki Equation 31 *
-			 * ==================================================================== */
-
-                         vector<double> gradPhi = gradient(oldGrid,x);
+				                         
+		         vector<double> gradPhi = gradient(oldGrid,x);
                          double magGradPhi = std::sqrt(gradPhi[0] * gradPhi[0] + gradPhi[1] * gradPhi[1]);
                          double invMagGradPhi = std::fabs(magGradPhi > 1e-12) ? 1.0/magGradPhi : 0.0; // catch divide-by-zero errors
                          vector<double> n = invMagGradPhi * gradPhi; // normalize gradPhi
                          double nx2 = n[0] * n[0]; // to save typing later
                          double ny2 = n[1] * n[1]; // store the squared components
-                         double L = 0.5 * (nx2 * nx2 + ny2 * ny2)
-                                   + (-0.5) * (nx2 * ny2);
+                         Lans =1 + 2 * (nx2 * nx2 + ny2 * ny2 + 3.8 * (nx2 * ny2);
+
+			}
+
+			/* ==================================================================== *
+			 * Solve the Equation of Motion for phi: Kim, Kim, & Suzuki Equation 31 *
+			 * ==================================================================== */
 
 			newGrid(n)[0] = phi_old + dt*( L*eps_sq*lapPhi - omega*gprime(phi_old)
 			                               + L*hprime(phi_old)*( fl(Cl_old)-fs(Cs_old)-(Cl_old-Cs_old)*dfl_dc(Cl_old) ));
