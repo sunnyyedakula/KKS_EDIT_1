@@ -606,7 +606,7 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
                          vector<double> n = invMagGradPhi * gradPhi; // normalize gradPhi
                          double nx2 = n[0] * n[0]; // to save typing later
                          double ny2 = n[1] * n[1]; // store the squared components
-                         Lans =1 + 2 * (nx2 * nx2 + ny2 * ny2) + 3.8 * (nx2 * ny2);
+                         Lans = 1.0 + 2 * (nx2 * nx2 + ny2 * ny2) + 3.8 * (nx2 * ny2);
 
 			}
 
@@ -614,8 +614,8 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 			 * Solve the Equation of Motion for phi: Kim, Kim, & Suzuki Equation 31 *
 			 * ==================================================================== */
 
-			newGrid(n)[0] = phi_old + dt*( L*eps_sq*lapPhi - omega*gprime(phi_old)
-			                               + L*hprime(phi_old)*( fl(Cl_old)-fs(Cs_old)-(Cl_old-Cs_old)*dfl_dc(Cl_old) ));
+			newGrid(n)[0] = phi_old + dt*( eps_sq*lapPhi - omega*gprime(phi_old)
+			                               + hprime(phi_old)*( fl(Cl_old)-fs(Cs_old)-(Cl_old-Cs_old)*dfl_dc(Cl_old) ));
 
 
 			/* ================================================================== *
