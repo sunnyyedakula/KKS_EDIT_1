@@ -35,7 +35,7 @@ const double Cse = 0.5413,  Cle = 0.3940;
 
 // Numerical stability (Courant-Friedrich-Lewy) parameters
 const double epsilon = 1.0e-10;  // what to consider zero to avoid log(c) explosions
-const double CFL = 0.2; // controls timestep
+const double CFL = 0.02; // controls timestep
 
 
 const bool useNeumann = true;
@@ -66,7 +66,6 @@ const double LUTpmin = -LUTdp*LUTmargin;
 const double LUTpmax =  LUTdp*(LUTnp+LUTmargin);
 const double LUTcmin = -LUTdc*LUTmargin;
 const double LUTcmax =  LUTdc*(LUTnc+LUTmargin);
-
 
 /* =============================================== *
  * Implement MMSP kernels, generate() and update() *
@@ -451,6 +450,8 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 		#pragma omp parallel for
 		#endif
 		for (int n=0; n<nodes(oldGrid); n++) {
+
+
 			/* ============================================== *
 			 * Point-wise kernel for parallel PDE integration *
 			 * ============================================== */
@@ -464,6 +465,7 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 			const T& Cl_old  = oldGrid(n)[3];
 
 
+
 			/* ======================================= *
 			 * Compute Second-Order Finite Differences *
 			 * ======================================= */
@@ -472,18 +474,19 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 			double divGradC = 0.0;
 			double lapPhi = 0.0;
 			double gradPsq = 0.0;
-			double Lans = 0.0;
+                        double n4 = 0.0;
+                        double n2 = 0.0;
                        // int nex = 0;
                         //int ney = 0;
-			//double L_ans = 0.0;
+			double mod = 0.0;
 			//double I_10 = 1.0;
 			//double I_11 = 1.0;
-                        //double mod;
+                        double ne = 0.0;
                        
 			vector<int> s(x);
 			for (int d=0; d<dim; d++) {
 				double weight = 1.0/pow(dx(oldGrid,d), 2.0);
-				double weight_two = 1.0/dx(oldGrid);
+				double weight_two = 1.0/pow(dx(oldGrid,d), 1.0);
 
 				if (x[d] == x0(oldGrid,d) &&
 				    x0(oldGrid,d) == g0(oldGrid,d) &&
@@ -499,6 +502,7 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 					const T& Lh = oldGrid(s)[3];
 					const T Mph = Q(ph,Sh,Lh)*hprime(ph)*(Lh-Sh);
 					const T Mch = Q(ph,Sh,Lh);
+                                       
 					           
 					// Get central values
 					s[d] -= 1;
@@ -509,18 +513,14 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 					const T Mpc = Q(pc,Sc,Lc)*hprime(pc)*(Lc-Sc);
 					const T Mcc = Q(pc,Sc,Lc);
                                         
-                                       // if(d == 0) {
-                                       // nex = 0.5*weight_two*(ph - pc);         
-                                       // } else {
-                    	               // ney = 0.5*weight_two*(ph - pc);
-                                        //}
-                     
 					// Put 'em all together
-					divGradP += 0.5*weight*( (Mph+Mpc)*(ph-pc) );
+                                        divGradP += 0.5*weight*( (Mph+Mpc)*(ph-pc) );
 					divGradC += 0.5*weight*( (Mch+Mcc)*(ch-cc) );
 					lapPhi   += weight*(ph-pc);
-                                       // mod = nex*nex + ney*ney;
-	                                //L_ans = (I_10*(nex*nex*nex*nex + ney*ney*ney*ney)/(mod*mod))+ 2.0*(I_11*(nex*nex*ney*ney)/(mod*mod));
+                                        ne = weight_two*(ph-pc); 
+                                        n4 += pow(weight_two*(ph-pc), 4.0);
+                                        n2 *= pow(weight*(ph-pc), 2.0); 
+					mod += ne*ne;
 
 				} else if (x[d] == x1(oldGrid,d)-1 &&
 				           x1(oldGrid,d) == g1(oldGrid,d) &&
@@ -544,17 +544,15 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 					const T& Lc = oldGrid(s)[3];
 					const T Mpc = Q(pc,Sc,Lc)*hprime(pc)*(Lc-Sc);
 					const T Mcc = Q(pc,Sc,Lc);
-				
-					//if(d == 0) {
-                                       // nex = 0.5*weight_two*(pc - pl);         
-                                       // } else {
-                    	               // ney = 0.5*weight_two*(pc - pl);
-                                        //}
                      
 					// Put 'em all together
-					divGradP += 0.5*weight*( (Mpc+Mpl)*(pl-pc) );
+                                       	divGradP += 0.5*weight*( (Mpc+Mpl)*(pl-pc) );
 					divGradC += 0.5*weight*( (Mcc+Mcl)*(cl-cc) );
 					lapPhi   += weight*(pl-pc);
+                                        ne = weight_two*(pl-pc); 
+                                        n4 += pow( weight_two*(pl-pc), 4.0 );
+                                        n2 *= pow( weight*(pl-pc), 2.0); 
+                                        mod += ne*ne;
                                         //mod = nex*nex + ney*ney;
 	                               // L_ans = (I_10*(nex*nex*nex*nex + ney*ney*ney*ney)/(mod*mod))+ 2.0*(I_11*(nex*nex*ney*ney)/(mod*mod));
 
@@ -585,45 +583,41 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 					const T Mpc = Q(pc,Sc,Lc)*hprime(pc)*(Lc-Sc);
 					const T Mcc = Q(pc,Sc,Lc);
 
-					//if(d == 0) {
-                                       // nex = 0.5*weight_two*(ph - 2*pc + pl);         
-                                       // } else {
-                    	                //ney = 0.5*weight_two*(ph - 2*pc + pl);
-                                        //}//
-                     
 					// Put 'em all together
+
 					divGradP += 0.5*weight*( (Mph+Mpc)*(ph-pc) - (Mpc+Mpl)*(pc-pl) );
 					divGradC += 0.5*weight*( (Mch+Mcc)*(ch-cc) - (Mcc+Mcl)*(cc-cl) );
 					lapPhi   += weight*( (ph-pc) - (pc-pl) );
-					gradPsq  += weight * pow(0.5*(ph-pl), 2.0); 
-                                       // mod = nex*nex + ney*ney;
-	                                //L_ans = (I_10*(nex*nex*nex*nex + ney*ney*ney*ney)/(mod*mod))+ 2.0*(I_11*(nex*nex*ney*ney)/(mod*mod));
+					gradPsq  += weight * pow(0.5*(ph-pl), 2.0);
+			                ne = 0.5*weight_two*( (ph-pc) - (pc-pl) );
+                                        n4 += pow(weight_two*( (ph-pc) - (pc-pl) ), 4.0);
+                                        n2 *= pow(weight*( (ph-pc) - (pc-pl) ), 2.0);
+                                        mod += ne*ne;
+	                               
 				}
-				                         
-		         vector<T> gradPhi = gradient(oldGrid,x,0);
-                         double magGradPhi = std::sqrt(gradPhi[0] * gradPhi[0] + gradPhi[1] * gradPhi[1]);
-                         double invMagGradPhi = std::fabs(magGradPhi > 1e-12) ? 1.0/magGradPhi : 0.0; // catch divide-by-zero errors
-                         vector<double> n = invMagGradPhi * gradPhi; // normalize gradPhi
-                         double nx2 = n[0] * n[0]; // to save typing later
-                         double ny2 = n[1] * n[1]; // store the squared components
-                         Lans = 1.0 + 2 * (nx2 * nx2 + ny2 * ny2) + 3.8 * (nx2 * ny2);
 
-			}
+                        }
+
+                        //double mod_2 = std::fabs(mod > 1e-6) ? 1.0/(mod*mod) : 0.0;
+                          double mod2 = 1.0/(mod*mod);
+			/* ==================================================================== *
+			 *                *Incorporation of L anisotropy *
+			 * ==================================================================== */
+
+                        double L_ans = n4*mod2 + 2*n2*mod2;
 
 			/* ==================================================================== *
 			 * Solve the Equation of Motion for phi: Kim, Kim, & Suzuki Equation 31 *
 			 * ==================================================================== */
 
-			newGrid(n)[0] = phi_old + dt*( eps_sq*lapPhi - omega*gprime(phi_old)
-			                               + hprime(phi_old)*( fl(Cl_old)-fs(Cs_old)-(Cl_old-Cs_old)*dfl_dc(Cl_old) ));
-
+			newGrid(n)[0] = phi_old + dt*std::abs(L_ans)*(eps_sq*lapPhi - omega*gprime(phi_old)
+			                               + hprime(phi_old)*( fl(Cl_old)-fs(Cs_old)-(Cl_old-Cs_old)*dfl_dc(Cl_old)) )   ;
 
 			/* ================================================================== *
 			 * Solve the Equation of Motion for c: Kim, Kim, & Suzuki Equation 33 *
 			 * ================================================================== */
 
 			newGrid(n)[1] = c_old + dt*(divGradC + divGradP);
-
 
 			/* ================================================== *
 			 * Interpolate consistent Cs and Cl from lookup table *
@@ -723,7 +717,7 @@ void print_values(const MMSP::grid<dim,MMSP::vector<T> >& oldGrid, const int ran
 	double fs = 100.0*(cTot - Cle)/(Cse-Cle);
 	double fl = 100.0*(Cse - cTot)/(Cse-Cle);
 	if (rank==0)
-		printf("System has %.2f%% solid, %.2f%% liquid, and composition %.2f%% B. Equilibrium is %.2f%% solid, %.2f%% liquid.\n",
+		printf("System has %.2f%% solid, %.2f%% liquid, and composition %.2f%% B. Equilibrium is %.2f%% solid, %.2f%%, liquid.\n",
 		       wps, wpl, 100.0*cTot, fs, fl);
 }
 
@@ -883,9 +877,9 @@ void simple_progress(int step, int steps) {
 	if (step==0)
 		std::cout<<" ["<<std::flush;
 	else if (step==steps-1)
-		std::cout<<"•] "<<std::endl;
+		std::cout<<"â€¢] "<<std::endl;
 	else if (step % (steps/20) == 0)
-		std::cout<<"• "<<std::flush;
+		std::cout<<"â€¢ "<<std::flush;
 }
 
 void export_energy(rootsolver& NRGsolver)
@@ -911,7 +905,7 @@ void export_energy(rootsolver& NRGsolver)
 		for (int j=0; j<nc+1; j++) {
 			double c = cmin+(cmax-cmin)*dc*j;
 			double cs(0.5), cl(0.5);
-			double res=NRGsolver.solve(p,c,cs,cl);
+			//double res=NRGsolver.solve(p,c,cs,cl);
 			ef << ',' << f(p, c, cs, cl);
 		}
 		ef << '\n';
