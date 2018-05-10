@@ -614,22 +614,11 @@ template <int dim, typename T> void update(grid<dim,vector<T> >& oldGrid, int st
 
                         }
 
-/* KKS_2.cpp:618:61: error: invalid static_cast from type ‘MMSP::vector<double>’ to type ‘double’
-                         T Lan = static_cast<double> (temp(n)); 
-                                                             ^
-KKS_2.cpp: In instantiation of ‘void MMSP::update(MMSP::grid<dim, MMSP::vector<U> >&, int) [with int dim = 2; T = double]’:
-/home/sominsoni/Desktop/phase2/mmsp-develop/include/MMSP.main.hpp:305:33:   required from here
-KKS_2.cpp:618:61: error: invalid static_cast from type ‘MMSP::vector<double>’ to type ‘double’
-KKS_2.cpp: In instantiation of ‘void MMSP::update(MMSP::grid<dim, MMSP::vector<U> >&, int) [with int dim = 3; T = double]’:
-/home/sominsoni/Desktop/phase2/mmsp-develop/include/MMSP.main.hpp:331:33:   required from here
-KKS_2.cpp:618:61: error: invalid static_cast from type ‘MMSP::vector<double>’ to type ‘double’
-
-*/
 			 /*==================================================================== *
 			 *                *Incorporation of L anisotropy *
 			 * ==================================================================== */
                             
-                        //T Lan = static_cast<double> (temp(n)); 
+
 
 			/* ==================================================================== *
 			 * Solve the Equation of Motion for phi: Kim, Kim, & Suzuki Equation 31 *
